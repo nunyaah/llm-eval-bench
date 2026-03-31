@@ -28,9 +28,24 @@ class Database:
                     dataset_path TEXT NOT NULL,
                     models TEXT NOT NULL,
                     evaluators TEXT NOT NULL,
+                    primary_metric TEXT,
+                    sample_count INTEGER,
                     status TEXT NOT NULL DEFAULT 'pending',
                     created_at TEXT NOT NULL,
                     completed_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS model_summaries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    run_id INTEGER NOT NULL,
+                    model_name TEXT NOT NULL,
+                    exact_match REAL,
+                    semantic_similarity REAL,
+                    ci_lower REAL,
+                    ci_upper REAL,
+                    avg_latency_ms REAL,
+                    total_cost REAL,
+                    FOREIGN KEY (run_id) REFERENCES eval_runs(id)
                 );
 
                 CREATE TABLE IF NOT EXISTS eval_results (
@@ -40,6 +55,7 @@ class Database:
                     input TEXT NOT NULL,
                     expected_output TEXT NOT NULL,
                     actual_output TEXT,
+                    normalized_actual TEXT,
                     scores TEXT,
                     latency_ms REAL,
                     tokens_used INTEGER,
@@ -49,22 +65,49 @@ class Database:
                 );
             """)
             conn.commit()
+            # Migrate existing databases that predate the new columns
+            self._migrate(conn)
         finally:
             conn.close()
 
+    def _migrate(self, conn: sqlite3.Connection) -> None:
+        """Add columns introduced after the initial schema without data loss."""
+        migrations = [
+            ("eval_runs", "primary_metric", "TEXT"),
+            ("eval_runs", "sample_count", "INTEGER"),
+            ("eval_results", "normalized_actual", "TEXT"),
+        ]
+        for table, column, col_type in migrations:
+            try:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+                conn.commit()
+            except sqlite3.OperationalError:
+                # Column already exists — ignore
+                pass
+
     def create_run(
-        self, dataset_path: str, models: list[str], evaluators: list[str], name: str | None = None
+        self,
+        dataset_path: str,
+        models: list[str],
+        evaluators: list[str],
+        name: str | None = None,
+        primary_metric: str | None = None,
+        sample_count: int | None = None,
     ) -> int:
         conn = self._get_connection()
         try:
             cursor = conn.execute(
-                """INSERT INTO eval_runs (name, dataset_path, models, evaluators, status, created_at)
-                   VALUES (?, ?, ?, ?, 'running', ?)""",
+                """INSERT INTO eval_runs
+                   (name, dataset_path, models, evaluators, primary_metric, sample_count,
+                    status, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, 'running', ?)""",
                 (
                     name or f"eval_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
                     dataset_path,
                     json.dumps(models),
                     json.dumps(evaluators),
+                    primary_metric,
+                    sample_count,
                     datetime.now(timezone.utc).isoformat(),
                 ),
             )
@@ -106,20 +149,22 @@ class Database:
         latency_ms: float | None,
         tokens_used: int | None,
         cost: float | None,
+        normalized_actual: str | None = None,
     ) -> int:
         conn = self._get_connection()
         try:
             cursor = conn.execute(
                 """INSERT INTO eval_results
-                   (run_id, model, input, expected_output, actual_output, scores,
-                    latency_ms, tokens_used, cost, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (run_id, model, input, expected_output, actual_output, normalized_actual,
+                    scores, latency_ms, tokens_used, cost, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     run_id,
                     model,
                     input_text,
                     expected_output,
                     actual_output,
+                    normalized_actual,
                     json.dumps(scores) if scores else None,
                     latency_ms,
                     tokens_used,
@@ -129,6 +174,49 @@ class Database:
             )
             conn.commit()
             return cursor.lastrowid
+        finally:
+            conn.close()
+
+    def upsert_model_summary(
+        self,
+        run_id: int,
+        model_name: str,
+        exact_match: float | None = None,
+        semantic_similarity: float | None = None,
+        ci_lower: float | None = None,
+        ci_upper: float | None = None,
+        avg_latency_ms: float | None = None,
+        total_cost: float | None = None,
+    ) -> None:
+        conn = self._get_connection()
+        try:
+            conn.execute(
+                """INSERT OR REPLACE INTO model_summaries
+                   (run_id, model_name, exact_match, semantic_similarity,
+                    ci_lower, ci_upper, avg_latency_ms, total_cost)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    run_id,
+                    model_name,
+                    exact_match,
+                    semantic_similarity,
+                    ci_lower,
+                    ci_upper,
+                    avg_latency_ms,
+                    total_cost,
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_model_summaries(self, run_id: int) -> list[dict]:
+        conn = self._get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM model_summaries WHERE run_id = ?", (run_id,)
+            ).fetchall()
+            return [dict(row) for row in rows]
         finally:
             conn.close()
 

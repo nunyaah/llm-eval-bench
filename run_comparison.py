@@ -66,6 +66,8 @@ def main():
         models=MODELS,
         evaluators=[ev.name for ev in EVALUATORS],
         name="llama3.2_1b_vs_3b",
+        primary_metric=EVALUATORS[0].name,
+        sample_count=len(data),
     )
 
     model_scores: dict[str, dict[str, list[float]]] = {
@@ -97,6 +99,7 @@ def main():
                 scores[ev.name] = s
                 model_scores[model][ev.name].append(s)
 
+            normalized = EVALUATORS[0].normalized_output(actual) if actual is not None else None
             tracker.record(model, latency_ms, tokens_used, cost)
             db.insert_result(
                 run_id=run_id,
@@ -104,20 +107,36 @@ def main():
                 input_text=input_text,
                 expected_output=expected,
                 actual_output=actual,
+                normalized_actual=normalized,
                 scores=scores,
                 latency_ms=latency_ms,
                 tokens_used=tokens_used,
                 cost=cost,
             )
 
-            print(f"  {model:<35} actual={actual!r:<30} em={scores.get('exact_match', 0):.1f}  sim={scores.get('semantic_similarity', 0):.2f}")
+            print(
+                f"  {model:<35} "
+                f"actual={actual!r:<30} "
+                f"normalized={normalized!r:<25} "
+                f"em={scores.get('exact_match', 0):.1f}  "
+                f"sim={scores.get('semantic_similarity', 0):.2f}"
+            )
 
     db.complete_run(run_id)
 
     # ---- Summary ----
     print(f"\n{'='*65}")
     print("RESULTS SUMMARY")
-    print(f"{'='*65}\n")
+    print(f"{'='*65}")
+    n_samples = len(data)
+    primary_metric = EVALUATORS[0].name
+    print(f"Primary metric:   {primary_metric}")
+    print(f"Samples:          {n_samples}")
+    print(f"CI method:        bootstrap (2000 resamples)")
+    print(f"Comparison:       paired bootstrap test")
+    if n_samples < 30:
+        print(f"\nWarning: sample size is small; confidence intervals may be wide.")
+    print()
 
     for model in MODELS:
         stats = model_scores[model]
@@ -140,11 +159,20 @@ def main():
     scores_b = model_scores[MODELS[1]]["exact_match"]
     comp = paired_bootstrap_test(scores_a, scores_b, seed=42)
 
+    winner = (
+        MODELS[0] if comp["mean_a"] > comp["mean_b"]
+        else MODELS[1] if comp["mean_b"] > comp["mean_a"]
+        else "tie"
+    )
+
     print(f"  {MODELS[0]}: {comp['mean_a']*100:.1f}%")
     print(f"  {MODELS[1]}: {comp['mean_b']*100:.1f}%")
     print(f"  Difference (A−B): {comp['mean_diff']*100:+.1f}%")
     print(f"  p-value:          {comp['p_value']:.4f}")
     print(f"  Significant:      {'Yes' if comp['is_significant'] else 'No'}")
+    print(f"  Winner:           {winner}")
+    if comp.get("warning") == "small_sample_size":
+        print(f"\n  Warning: sample size is small; intervals may be wide.")
     print(f"\n  → {comp['interpretation']}")
     print(f"\nResults stored in DB as run #{run_id}")
 

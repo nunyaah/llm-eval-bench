@@ -8,6 +8,7 @@ class EvalRequest(BaseModel):
         default=None, description="Evaluator names. Defaults to ['exact_match']"
     )
     run_name: str | None = Field(default=None, description="Optional name for this run")
+    primary_metric: str | None = Field(default=None, description="Primary metric for comparison")
 
 
 class ScoreStats(BaseModel):
@@ -16,6 +17,10 @@ class ScoreStats(BaseModel):
     upper: float
     std: float
     confidence_level: float
+    n_samples: int | None = None
+    ci_method: str | None = None
+    n_bootstrap: int | None = None
+    warning: str | None = None
 
 
 class TrackingSummary(BaseModel):
@@ -40,12 +45,29 @@ class ComparisonResult(BaseModel):
     is_significant: bool
     significance_level: float
     interpretation: str
+    n_samples: int | None = None
+    comparison_method: str | None = None
+    ci_method: str | None = None
+    n_bootstrap: int | None = None
+    warning: str | None = None
+    winner: str | None = None
+
+
+class ModelSummary(BaseModel):
+    model_name: str
+    exact_match: float | None = None
+    semantic_similarity: float | None = None
+    ci_lower: float | None = None
+    ci_upper: float | None = None
+    avg_latency_ms: float | None = None
+    total_cost: float | None = None
 
 
 class EvalRunResponse(BaseModel):
     run_id: int
     models: list[str]
     evaluators: list[str]
+    primary_metric: str | None = None
     dataset: str
     num_samples: int
     model_stats: dict
@@ -58,6 +80,8 @@ class RunInfo(BaseModel):
     dataset_path: str
     models: list[str]
     evaluators: list[str]
+    primary_metric: str | None = None
+    sample_count: int | None = None
     status: str
     created_at: str
     completed_at: str | None
@@ -70,6 +94,7 @@ class ResultItem(BaseModel):
     input: str
     expected_output: str
     actual_output: str | None
+    normalized_actual: str | None = None
     scores: dict | None
     latency_ms: float | None
     tokens_used: int | None

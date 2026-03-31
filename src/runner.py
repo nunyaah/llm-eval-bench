@@ -17,6 +17,14 @@ EVALUATOR_REGISTRY: dict[str, type[BaseEvaluator]] = {
 }
 
 
+def _get_normalized_output(ev_instances: list[BaseEvaluator], actual: str) -> str | None:
+    """Return the normalized form of *actual* using the first ExactMatchEvaluator found."""
+    for ev in ev_instances:
+        if isinstance(ev, ExactMatchEvaluator):
+            return ev.normalized_output(actual)
+    return None
+
+
 def _call_model(model: str, prompt: str) -> dict:
     """Call an LLM via LiteLLM and return response with metrics."""
     start = time.perf_counter()
@@ -74,12 +82,15 @@ def evaluate(
     data = load_dataset(dataset)
     db = Database(db_path)
     tracker = CostLatencyTracker()
+    primary_metric = evaluator_names[0]
 
     run_id = db.create_run(
         dataset_path=dataset,
         models=models,
         evaluators=evaluator_names,
         name=run_name,
+        primary_metric=primary_metric,
+        sample_count=len(data),
     )
 
     # Collect scores per model per evaluator for statistical comparison
@@ -107,6 +118,7 @@ def evaluate(
 
                 # Score with each evaluator
                 scores = {}
+                normalized_actual = _get_normalized_output(evaluator_instances, actual) if actual is not None else None
                 if actual is not None:
                     for ev in evaluator_instances:
                         score_val = ev.score(expected, actual)
@@ -124,6 +136,7 @@ def evaluate(
                     input_text=input_text,
                     expected_output=expected,
                     actual_output=actual,
+                    normalized_actual=normalized_actual,
                     scores=scores,
                     latency_ms=latency_ms,
                     tokens_used=tokens_used,
@@ -143,25 +156,40 @@ def evaluate(
             scores_list = model_scores[model][ev.name]
             if scores_list:
                 stats[ev.name] = bootstrap_confidence_interval(scores_list)
-        stats["tracking"] = tracker.summary(model)
+        tracking = tracker.summary(model)
+        stats["tracking"] = tracking
         model_stats[model] = stats
+
+        # Persist model summary to DB
+        em_stats = stats.get("exact_match", {})
+        sim_stats = stats.get("semantic_similarity", {})
+        db.upsert_model_summary(
+            run_id=run_id,
+            model_name=model,
+            exact_match=em_stats.get("mean"),
+            semantic_similarity=sim_stats.get("mean"),
+            ci_lower=em_stats.get("lower"),
+            ci_upper=em_stats.get("upper"),
+            avg_latency_ms=tracking.get("avg_latency_ms"),
+            total_cost=tracking.get("total_cost"),
+        )
 
     # Paired comparison (first evaluator, first two models)
     comparison = None
     if len(models) >= 2:
-        primary_evaluator = evaluator_instances[0].name
-        scores_a = model_scores[models[0]][primary_evaluator]
-        scores_b = model_scores[models[1]][primary_evaluator]
+        scores_a = model_scores[models[0]][primary_metric]
+        scores_b = model_scores[models[1]][primary_metric]
         if scores_a and scores_b:
             comparison = paired_bootstrap_test(scores_a, scores_b)
             comparison["model_a"] = models[0]
             comparison["model_b"] = models[1]
-            comparison["evaluator"] = primary_evaluator
+            comparison["evaluator"] = primary_metric
 
     return {
         "run_id": run_id,
         "models": models,
         "evaluators": evaluator_names,
+        "primary_metric": primary_metric,
         "dataset": dataset,
         "num_samples": len(data),
         "model_stats": model_stats,

@@ -1,10 +1,12 @@
 import numpy as np
 
+SMALL_SAMPLE_THRESHOLD = 30
+
 
 def paired_bootstrap_test(
     scores_a: list[float],
     scores_b: list[float],
-    n_bootstrap: int = 10000,
+    n_bootstrap: int = 2000,
     significance_level: float = 0.05,
     seed: int | None = None,
 ) -> dict:
@@ -14,7 +16,9 @@ def paired_bootstrap_test(
     by bootstrapping the difference in means.
 
     Returns:
-        dict with keys: mean_a, mean_b, mean_diff, p_value, is_significant, interpretation
+        dict with keys: mean_a, mean_b, mean_diff, p_value, is_significant,
+        interpretation, n_samples, comparison_method, ci_method, n_bootstrap,
+        and optionally warning.
     """
     a = np.array(scores_a)
     b = np.array(scores_b)
@@ -50,7 +54,7 @@ def paired_bootstrap_test(
     else:
         interpretation = f"Model B is significantly better (p={p_value:.4f})"
 
-    return {
+    result: dict = {
         "mean_a": mean_a,
         "mean_b": mean_b,
         "mean_diff": observed_diff,
@@ -58,4 +62,11 @@ def paired_bootstrap_test(
         "is_significant": is_significant,
         "significance_level": significance_level,
         "interpretation": interpretation,
+        "n_samples": n,
+        "comparison_method": "paired_bootstrap",
+        "ci_method": "bootstrap",
+        "n_bootstrap": n_bootstrap,
     }
+    if n < SMALL_SAMPLE_THRESHOLD:
+        result["warning"] = "small_sample_size"
+    return result

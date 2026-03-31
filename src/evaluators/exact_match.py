@@ -1,25 +1,43 @@
 from src.evaluators.base import BaseEvaluator
+from src.evaluators.normalization import normalize_answer
 
 
 class ExactMatchEvaluator(BaseEvaluator):
-    """Scores 1.0 if the expected and actual outputs match exactly, 0.0 otherwise."""
+    """Normalized exact match evaluator.
+
+    By default applies full normalization (case, whitespace, punctuation, numerics)
+    so that surface-level formatting differences do not affect scores.
+    Set ``normalize=False`` to fall back to the original strip+lowercase behaviour.
+    """
 
     name = "exact_match"
 
-    def __init__(self, case_sensitive: bool = False, strip_whitespace: bool = True):
+    def __init__(
+        self,
+        case_sensitive: bool = False,
+        strip_whitespace: bool = True,
+        normalize: bool = True,
+        remove_articles: bool = False,
+    ):
         self.case_sensitive = case_sensitive
         self.strip_whitespace = strip_whitespace
+        self.normalize = normalize
+        self.remove_articles = remove_articles
 
-    def score(self, expected: str, actual: str) -> float:
-        e = expected
-        a = actual
-
+    def _prepare(self, text: str) -> str:
+        """Return the comparison form of *text*."""
+        if self.normalize:
+            return normalize_answer(text, remove_articles=self.remove_articles)
+        e = text
         if self.strip_whitespace:
             e = e.strip()
-            a = a.strip()
-
         if not self.case_sensitive:
             e = e.lower()
-            a = a.lower()
+        return e
 
-        return 1.0 if e == a else 0.0
+    def score(self, expected: str, actual: str) -> float:
+        return 1.0 if self._prepare(expected) == self._prepare(actual) else 0.0
+
+    def normalized_output(self, text: str) -> str:
+        """Return the normalized form of *text* for display / logging."""
+        return self._prepare(text)

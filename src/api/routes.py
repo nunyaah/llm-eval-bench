@@ -28,15 +28,20 @@ def run_eval(request: EvalRequest):
 
 @router.get("/results/{run_id}")
 def get_results(run_id: int):
-    """Get results for a specific evaluation run."""
+    """Get full results for a specific evaluation run.
+
+    Returns run metadata, per-model summaries, and per-sample results.
+    """
     db = Database()
     run = db.get_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
 
+    model_summaries = db.get_model_summaries(run_id)
     results = db.get_results(run_id)
     return {
         "run": run,
+        "model_summaries": model_summaries,
         "results": results,
     }
 
@@ -92,8 +97,8 @@ def compare_models(run_id: int):
         model_stats[model] = stats
         model_scores[model] = scores_by_evaluator
 
-    # Paired comparison on the first evaluator
-    primary_ev = evaluators[0]
+    # Paired comparison on the primary metric (first evaluator)
+    primary_ev = run.get("primary_metric") or evaluators[0]
     scores_a = model_scores[models[0]].get(primary_ev, [])
     scores_b = model_scores[models[1]].get(primary_ev, [])
 
@@ -103,11 +108,20 @@ def compare_models(run_id: int):
         comparison["model_a"] = models[0]
         comparison["model_b"] = models[1]
         comparison["evaluator"] = primary_ev
+        mean_a = comparison["mean_a"]
+        mean_b = comparison["mean_b"]
+        comparison["winner"] = (
+            models[0] if mean_a > mean_b
+            else models[1] if mean_b > mean_a
+            else "tie"
+        )
 
     return {
         "run_id": run_id,
+        "run": run,
         "models": models,
         "evaluators": evaluators,
+        "primary_metric": primary_ev,
         "model_stats": model_stats,
         "comparison": comparison,
     }
