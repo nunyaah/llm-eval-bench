@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "llm-eval-bench"
+abstract: "Statistically rigorous evaluation framework for LLMs using bootstrap confidence intervals and paired model comparison."
+license: MIT
+version: 0.1.0
+date-released: 2026-03-31
+keywords:
+  - llm
+  - evaluation
+  - benchmark
+  - statistics
+  - bootstrap
+  - confidence-intervals
