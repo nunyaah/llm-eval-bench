@@ -1,5 +1,6 @@
 scope.md
 .env
+api.py
 
 # Python
 __pycache__/

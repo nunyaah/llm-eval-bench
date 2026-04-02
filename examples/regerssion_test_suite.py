@@ -12,32 +12,44 @@ from src.runner import evaluate
 
 REGRESSION_THRESHOLD = 0.05  # Max acceptable drop in accuracy
 
+# Instruct models to respond concisely so exact-match scoring is meaningful.
+SYSTEM_PROMPT = (
+    "You are a precise question-answering assistant. "
+    "Respond with only the answer – no explanation, no extra context, no punctuation beyond what is part of the answer itself."
+)
+
 
 def main():
-    baseline_model = "gpt-4o-mini"
-    candidate_model = "gpt-4o"
+    baseline_model = "claude-3-haiku-20240307"
+    candidate_model = "claude-sonnet-4-5-20250929"
 
     result = evaluate(
         models=[baseline_model, candidate_model],
         dataset="data/sample_qa.json",
-        evaluators=["exact_match"],
+        evaluators=["exact_match", "semantic_similarity"],
         run_name="regression_test",
+        system_prompt=SYSTEM_PROMPT,
     )
 
     baseline_stats = result["model_stats"][baseline_model]
     candidate_stats = result["model_stats"][candidate_model]
 
-    baseline_score = baseline_stats["exact_match"]["mean"]
-    candidate_score = candidate_stats["exact_match"]["mean"]
+    baseline_exact = baseline_stats["exact_match"]["mean"]
+    candidate_exact = candidate_stats["exact_match"]["mean"]
+
+    baseline_sem = baseline_stats.get("semantic_similarity", {}).get("mean", 0.0)
+    candidate_sem = candidate_stats.get("semantic_similarity", {}).get("mean", 0.0)
 
     print(f"\n{'='*60}")
     print("Regression Test Results")
     print(f"{'='*60}\n")
-    print(f"  Baseline ({baseline_model}):   {baseline_score*100:.1f}%")
-    print(f"  Candidate ({candidate_model}): {candidate_score*100:.1f}%")
+    print(f"  {'Model':<40} {'Exact Match':>12} {'Semantic Sim':>14}")
+    print(f"  {'-'*66}")
+    print(f"  Baseline  ({baseline_model})  {baseline_exact*100:>10.1f}%  {baseline_sem*100:>12.1f}%")
+    print(f"  Candidate ({candidate_model})  {candidate_exact*100:>10.1f}%  {candidate_sem*100:>12.1f}%")
 
-    diff = candidate_score - baseline_score
-    print(f"  Difference: {diff*100:+.1f}%")
+    diff = candidate_exact - baseline_exact
+    print(f"\n  Exact-match difference: {diff*100:+.1f}%")
 
     if diff < -REGRESSION_THRESHOLD:
         print(f"\n  ❌ REGRESSION DETECTED: Candidate dropped by {abs(diff)*100:.1f}%")

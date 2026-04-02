@@ -25,12 +25,17 @@ def _get_normalized_output(ev_instances: list[BaseEvaluator], actual: str) -> st
     return None
 
 
-def _call_model(model: str, prompt: str) -> dict:
+def _call_model(model: str, prompt: str, system_prompt: str | None = None) -> dict:
     """Call an LLM via LiteLLM and return response with metrics."""
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
     start = time.perf_counter()
     response = litellm.completion(
         model=model,
-        messages=[{"role": "user", "content": prompt}],
+        messages=messages,
     )
     latency_ms = (time.perf_counter() - start) * 1000
 
@@ -59,6 +64,7 @@ def evaluate(
     evaluators: list[str] | None = None,
     run_name: str | None = None,
     db_path: str | None = None,
+    system_prompt: str | None = None,
 ) -> dict:
     """Run an evaluation comparing models on a dataset.
 
@@ -68,6 +74,7 @@ def evaluate(
         evaluators: List of evaluator names. Defaults to ["exact_match"]
         run_name: Optional name for this evaluation run
         db_path: Optional database path override
+        system_prompt: Optional system prompt prepended to every model call
 
     Returns:
         dict with run_id, per-model results, statistics, and tracking summaries
@@ -105,7 +112,7 @@ def evaluate(
 
             for model in models:
                 try:
-                    result = _call_model(model, input_text)
+                    result = _call_model(model, input_text, system_prompt=system_prompt)
                     actual = result["output"]
                     latency_ms = result["latency_ms"]
                     tokens_used = result["tokens_used"]

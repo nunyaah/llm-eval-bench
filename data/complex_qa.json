@@ -1,0 +1,102 @@
+[
+    {
+        "input": "A train leaves Station A at 09:00 travelling at 80 km/h. Another train leaves Station B, 360 km away, at 10:00 travelling toward Station A at 100 km/h. At what time do they meet?",
+        "expected_output": "11:33"
+    },
+    {
+        "input": "What is the output of this Python expression: sorted(set([3, 1, 4, 1, 5, 9, 2, 6, 5, 3]))",
+        "expected_output": "[1, 2, 3, 4, 5, 6, 9]"
+    },
+    {
+        "input": "If the half-life of Carbon-14 is 5730 years, what fraction of the original sample remains after 11460 years?",
+        "expected_output": "1/4"
+    },
+    {
+        "input": "A rectangle has a perimeter of 54 cm and its length is twice its width. What is the area of the rectangle?",
+        "expected_output": "162 cm²"
+    },
+    {
+        "input": "In Python, what is the time complexity of looking up a key in a dictionary (average case)?",
+        "expected_output": "O(1)"
+    },
+    {
+        "input": "Which logical fallacy describes arguing that something is true because it has always been done that way?",
+        "expected_output": "Appeal to tradition"
+    },
+    {
+        "input": "An investment of $1000 grows at an annual compound interest rate of 5%. What is its value after 3 years, rounded to the nearest cent?",
+        "expected_output": "1157.63"
+    },
+    {
+        "input": "What is the name of the process by which a solid turns directly into a gas without passing through the liquid state?",
+        "expected_output": "Sublimation"
+    },
+    {
+        "input": "If you reverse the string 'hello' and concatenate it with the original, what do you get?",
+        "expected_output": "ollehello"
+    },
+    {
+        "input": "A bag contains 4 red balls, 3 blue balls, and 5 green balls. If one ball is drawn at random, what is the probability it is not green? Express as a simplified fraction.",
+        "expected_output": "7/12"
+    },
+    {
+        "input": "What does the SQL keyword DISTINCT do in a SELECT statement?",
+        "expected_output": "Removes duplicate rows from the result set"
+    },
+    {
+        "input": "Given the sequence: 2, 6, 12, 20, 30, what is the next number?",
+        "expected_output": "42"
+    },
+    {
+        "input": "What is the name of the theorem that states: in a right triangle, the square of the hypotenuse equals the sum of the squares of the other two sides?",
+        "expected_output": "Pythagorean theorem"
+    },
+    {
+        "input": "A function f(x) = 3x² - 12x + 9. What are the x-intercepts?",
+        "expected_output": "1 and 3"
+    },
+    {
+        "input": "Which data structure operates on a Last-In First-Out (LIFO) principle?",
+        "expected_output": "Stack"
+    },
+    {
+        "input": "What is the median of the following dataset: 7, 15, 3, 22, 8, 3, 19?",
+        "expected_output": "8"
+    },
+    {
+        "input": "In networking, what does the acronym DNS stand for and what is its primary function?",
+        "expected_output": "Domain Name System; translates domain names to IP addresses"
+    },
+    {
+        "input": "How many bytes are in 2 gigabytes?",
+        "expected_output": "2147483648"
+    },
+    {
+        "input": "If all Bloops are Razzies and all Razzies are Lazzies, are all Bloops definitely Lazzies?",
+        "expected_output": "Yes"
+    },
+    {
+        "input": "What is the missing number in the series: 1, 1, 2, 3, 5, 8, __, 21?",
+        "expected_output": "13"
+    },
+    {
+        "input": "In Big O notation, what is the time complexity of merge sort in the worst case?",
+        "expected_output": "O(n log n)"
+    },
+    {
+        "input": "A car accelerates from rest to 30 m/s in 10 seconds with uniform acceleration. What distance does it cover during this time?",
+        "expected_output": "150 m"
+    },
+    {
+        "input": "What design pattern ensures a class has only one instance and provides a global point of access to it?",
+        "expected_output": "Singleton"
+    },
+    {
+        "input": "Convert 255 from decimal to hexadecimal.",
+        "expected_output": "FF"
+    },
+    {
+        "input": "In economics, what term describes a market structure with a single seller that dominates the entire market?",
+        "expected_output": "Monopoly"
+    }
+]

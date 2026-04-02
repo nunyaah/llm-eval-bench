@@ -20,10 +20,10 @@ from src.tracking.tracker import CostLatencyTracker
 
 # Ollama models — prefixed with "ollama/" for LiteLLM routing
 MODELS = [
-    "ollama/llama3.2:1b",
-    "ollama/llama3.2:3b",
+    "claude-3-haiku-20240307",
+    "claude-sonnet-4-5-20250929",
 ]
-DATASET = "data/sample_qa.json"
+DATASET = "data/complex_qa.json"
 EVALUATORS = [ExactMatchEvaluator(), SemanticSimilarityEvaluator()]
 
 # Instruct models to respond with just the answer — improves exact match scoring
@@ -65,7 +65,7 @@ def main():
         dataset_path=DATASET,
         models=MODELS,
         evaluators=[ev.name for ev in EVALUATORS],
-        name="llama3.2_1b_vs_3b",
+        name="claude_3_haiku_vs_sonnet_4_5",
         primary_metric=EVALUATORS[0].name,
         sample_count=len(data),
     )

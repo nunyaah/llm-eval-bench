@@ -47,9 +47,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <h1>llm-eval-bench Dashboard</h1>
 
     <div class="card" id="runs-card">
-        <h2>Evaluation Runs</h2>
-        <button class="btn btn-primary" onclick="loadRuns()" style="margin-bottom:0.75rem">Load Runs</button>
-        <div id="runs-list" style="display:none">
+        <div class="section-header">
+            <h2>Evaluation Runs</h2>
+            <button class="btn btn-primary btn-sm" onclick="loadRuns()">&#8635; Refresh</button>
+        </div>
+        <div id="runs-list">
             <table>
                 <thead>
                     <tr>
@@ -96,7 +98,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         async function loadRuns() {
             const tbody = document.getElementById('runs-tbody');
             tbody.innerHTML = '<tr><td colspan="9" class="loading">Loading...</td></tr>';
-            document.getElementById('runs-list').style.display = 'block';
             try {
                 const resp = await fetch('/api/runs');
                 const runs = await resp.json();
@@ -269,6 +270,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         function esc(str) {
             return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
+
+        document.addEventListener('DOMContentLoaded', loadRuns);
     </script>
 </body>
 </html>"""
