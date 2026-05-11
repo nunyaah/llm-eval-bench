@@ -7,28 +7,24 @@ Compares a baseline model against a candidate to ensure the candidate
 doesn't regress below the baseline's performance.
 """
 
+from src.config import DATASET, EVALUATORS, MODELS, PRIMARY_METRIC, SYSTEM_PROMPT
 from src.runner import evaluate
 
 
 REGRESSION_THRESHOLD = 0.05  # Max acceptable drop in accuracy
 
-# Instruct models to respond concisely so exact-match scoring is meaningful.
-SYSTEM_PROMPT = (
-    "You are a precise question-answering assistant. "
-    "Respond with only the answer – no explanation, no extra context, no punctuation beyond what is part of the answer itself."
-)
-
 
 def main():
-    baseline_model = "claude-3-haiku-20240307"
-    candidate_model = "claude-sonnet-4-5-20250929"
+    baseline_model = MODELS[0]
+    candidate_model = MODELS[1]
 
     result = evaluate(
         models=[baseline_model, candidate_model],
-        dataset="data/sample_qa.json",
-        evaluators=["exact_match", "semantic_similarity"],
+        dataset=DATASET,
+        evaluators=EVALUATORS,
         run_name="regression_test",
         system_prompt=SYSTEM_PROMPT,
+        primary_metric=PRIMARY_METRIC,
     )
 
     baseline_stats = result["model_stats"][baseline_model]

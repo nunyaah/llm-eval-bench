@@ -1,6 +1,7 @@
 scope.md
 .env
 api.py
+target.md
 
 # Python
 __pycache__/
@@ -18,3 +19,4 @@ venv/
 # IDE
 .vscode/
 .idea/
+

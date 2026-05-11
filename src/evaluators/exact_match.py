@@ -35,7 +35,7 @@ class ExactMatchEvaluator(BaseEvaluator):
             e = e.lower()
         return e
 
-    def score(self, expected: str, actual: str) -> float:
+    def score(self, expected: str, actual: str, input_text: str | None = None) -> float:
         return 1.0 if self._prepare(expected) == self._prepare(actual) else 0.0
 
     def normalized_output(self, text: str) -> str:

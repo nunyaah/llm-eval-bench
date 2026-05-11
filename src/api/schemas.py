@@ -57,6 +57,8 @@ class ModelSummary(BaseModel):
     model_name: str
     exact_match: float | None = None
     semantic_similarity: float | None = None
+    llm_judge: float | None = None
+    faithfulness: float | None = None
     ci_lower: float | None = None
     ci_upper: float | None = None
     avg_latency_ms: float | None = None

@@ -7,8 +7,13 @@ class BaseEvaluator(ABC):
     name: str = "base"
 
     @abstractmethod
-    def score(self, expected: str, actual: str) -> float:
+    def score(self, expected: str, actual: str, input_text: str | None = None) -> float:
         """Score the actual output against the expected output.
+
+        Args:
+            expected: The ground-truth / reference answer.
+            actual: The model-generated answer.
+            input_text: The original question or prompt (used by LLM-based evaluators).
 
         Returns a float between 0.0 and 1.0.
         """

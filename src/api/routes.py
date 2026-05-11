@@ -18,6 +18,7 @@ def run_eval(request: EvalRequest):
             dataset=request.dataset,
             evaluators=request.evaluators,
             run_name=request.run_name,
+            primary_metric=request.primary_metric,
         )
         return result
     except FileNotFoundError as e:

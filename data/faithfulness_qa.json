@@ -1,0 +1,122 @@
+[
+    {
+        "input": "Albert Einstein published his general theory of relativity in 1915. How many years elapsed between that publication and the first experimental confirmation of gravitational lensing during the solar eclipse of 1919?",
+        "expected_output": "4"
+    },
+    {
+        "input": "What is the sum of the first 20 prime numbers?",
+        "expected_output": "639"
+    },
+    {
+        "input": "A company had 120 employees in January. Each quarter, the workforce grew by 15%. How many employees did the company have at the end of December (after four quarters of growth)? Round to the nearest whole number.",
+        "expected_output": "210"
+    },
+    {
+        "input": "In Python, what is the output of: list(map(lambda x: x**2, filter(lambda x: x % 2 == 0, range(1, 11))))",
+        "expected_output": "[4, 16, 36, 64, 100]"
+    },
+    {
+        "input": "Name the three primary subatomic particles that make up an atom and their respective electrical charges.",
+        "expected_output": "Proton (positive), neutron (neutral), electron (negative)"
+    },
+    {
+        "input": "The Fibonacci sequence starts 0, 1, 1, 2, 3, 5, 8, 13, 21, 34. What is the ratio of the 10th term to the 9th term, rounded to three decimal places?",
+        "expected_output": "1.619"
+    },
+    {
+        "input": "If a fair six-sided die is rolled three times, what is the probability of getting at least one six? Express as a fraction in lowest terms.",
+        "expected_output": "91/216"
+    },
+    {
+        "input": "What sorting algorithm has a best-case time complexity of O(n), a worst-case of O(n^2), and works by repeatedly swapping adjacent elements?",
+        "expected_output": "Bubble sort"
+    },
+    {
+        "input": "Marie Curie won Nobel Prizes in two different scientific disciplines. Name both disciplines.",
+        "expected_output": "Physics and Chemistry"
+    },
+    {
+        "input": "A TCP three-way handshake involves three steps. List the flags used in each step in order.",
+        "expected_output": "SYN, SYN-ACK, ACK"
+    },
+    {
+        "input": "What is the chemical formula for glucose and how many atoms does one molecule contain in total?",
+        "expected_output": "C6H12O6; 24 atoms"
+    },
+    {
+        "input": "In graph theory, what is the minimum number of colours needed to colour any planar graph so that no two adjacent vertices share the same colour?",
+        "expected_output": "4"
+    },
+    {
+        "input": "A binary search tree contains the values 15, 10, 20, 8, 12, 17, 25 inserted in that order. What is the in-order traversal output?",
+        "expected_output": "8, 10, 12, 15, 17, 20, 25"
+    },
+    {
+        "input": "Light travels at approximately 3 x 10^8 m/s. How many seconds does it take for light to travel from the Sun to Earth, given the average distance is about 1.496 x 10^11 metres? Round to the nearest whole second.",
+        "expected_output": "499"
+    },
+    {
+        "input": "What principle in quantum mechanics states that the position and momentum of a particle cannot both be precisely determined at the same time?",
+        "expected_output": "Heisenberg uncertainty principle"
+    },
+    {
+        "input": "Explain in one sentence what the CAP theorem states about distributed systems.",
+        "expected_output": "A distributed system can provide at most two of the three guarantees: consistency, availability, and partition tolerance."
+    },
+    {
+        "input": "What is the derivative of f(x) = ln(x^2 + 1)?",
+        "expected_output": "2x / (x^2 + 1)"
+    },
+    {
+        "input": "In cryptography, what is the key difference between symmetric and asymmetric encryption?",
+        "expected_output": "Symmetric encryption uses the same key for encryption and decryption, while asymmetric encryption uses a public key for encryption and a private key for decryption."
+    },
+    {
+        "input": "A database table has columns: id, name, department, salary. Write a SQL query that returns the average salary per department, only including departments with more than 5 employees, ordered by average salary descending.",
+        "expected_output": "SELECT department, AVG(salary) FROM employees GROUP BY department HAVING COUNT(*) > 5 ORDER BY AVG(salary) DESC"
+    },
+    {
+        "input": "What is the time complexity of finding the shortest path in an unweighted graph using BFS, where V is the number of vertices and E is the number of edges?",
+        "expected_output": "O(V + E)"
+    },
+    {
+        "input": "The pH scale ranges from 0 to 14. A solution with a pH of 3 is how many times more acidic than a solution with a pH of 6?",
+        "expected_output": "1000"
+    },
+    {
+        "input": "In the context of machine learning, what does the bias-variance tradeoff describe?",
+        "expected_output": "The tradeoff between a model's ability to fit training data (low bias) and its ability to generalize to unseen data (low variance); reducing one typically increases the other."
+    },
+    {
+        "input": "What HTTP status code indicates that a resource has been permanently moved to a new URL?",
+        "expected_output": "301"
+    },
+    {
+        "input": "A circular linked list has 7 nodes. Starting from node 1, if you remove every 3rd node, which node is the last one remaining? (Josephus problem)",
+        "expected_output": "4"
+    },
+    {
+        "input": "What are the four pillars of object-oriented programming?",
+        "expected_output": "Encapsulation, abstraction, inheritance, polymorphism"
+    },
+    {
+        "input": "Convert the binary number 11010110 to its decimal equivalent.",
+        "expected_output": "214"
+    },
+    {
+        "input": "In statistics, what is the difference between Type I and Type II errors?",
+        "expected_output": "A Type I error is a false positive (rejecting a true null hypothesis), while a Type II error is a false negative (failing to reject a false null hypothesis)."
+    },
+    {
+        "input": "What does the acronym SOLID stand for in software engineering? List all five principles.",
+        "expected_output": "Single Responsibility, Open-Closed, Liskov Substitution, Interface Segregation, Dependency Inversion"
+    },
+    {
+        "input": "A matrix A is 3x4 and matrix B is 4x2. What are the dimensions of the resulting matrix when A is multiplied by B?",
+        "expected_output": "3x2"
+    },
+    {
+        "input": "In networking, what are the seven layers of the OSI model from bottom to top?",
+        "expected_output": "Physical, Data Link, Network, Transport, Session, Presentation, Application"
+    }
+]

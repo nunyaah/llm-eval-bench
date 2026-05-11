@@ -38,6 +38,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         .error { color: #e74c3c; }
         .correct { color: #27ae60; }
         .wrong { color: #e74c3c; }
+        .partial { color: #e67e22; }
         .mono { font-family: 'Courier New', monospace; font-size: 0.82rem; }
         .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
         .run-title { font-size: 0.85rem; color: #777; margin-bottom: 1rem; }
@@ -87,10 +88,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             <div id="stats-content"></div>
         </div>
 
-        <!-- Section 4: Per-sample failures -->
+        <!-- Section 4: Per-sample low-scoring results -->
         <div class="card">
-            <h2>Per-Sample Failures</h2>
-            <div id="failures-content"><p class="loading">Loading failures...</p></div>
+            <h2>Low-Scoring Samples <small style="font-weight:400;font-size:0.82rem;color:#888">(LLM Judge score &lt; 50%)</small></h2>
+            <div id="failures-content"><p class="loading">Loading...</p></div>
         </div>
     </div>
 
@@ -225,40 +226,45 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
         function renderFailures(resData, cmp) {
             const results = resData.results || [];
-            const primaryEv = cmp.primary_metric || (cmp.evaluators || [])[0] || 'exact_match';
+            const JUDGE_EV = 'llm_judge';
+            const FAIL_THRESHOLD = 0.5;  // samples where any model scored below this are shown
 
-            // Collect failures: rows where any model scored 0 on the primary metric
             const byInput = {};
             results.forEach(r => {
                 if (!byInput[r.input]) byInput[r.input] = {};
                 byInput[r.input][r.model] = r;
             });
 
-            const failures = Object.values(byInput).filter(group =>
-                Object.values(group).some(r => (r.scores || {})[primaryEv] === 0)
+            // Show rows where at least one model has a judge score below the threshold
+            const lowScoring = Object.values(byInput).filter(group =>
+                Object.values(group).some(r => {
+                    const s = (r.scores || {})[JUDGE_EV];
+                    return s === undefined || s === null || s < FAIL_THRESHOLD;
+                })
             );
 
-            if (failures.length === 0) {
+            if (lowScoring.length === 0) {
                 document.getElementById('failures-content').innerHTML =
-                    '<p class="correct">✓ No failures on primary metric.</p>';
+                    '<p class="correct">✓ All samples scored ≥ 50% on LLM Judge.</p>';
                 return;
             }
 
             const models = cmp.models;
-            let html = `<p style="margin-bottom:0.75rem;font-size:0.85rem;color:#555">${failures.length} sample(s) with at least one model failing <strong>${primaryEv}</strong>.</p>`;
+            let html = `<p style="margin-bottom:0.75rem;font-size:0.85rem;color:#555">${lowScoring.length} sample(s) where at least one model scored below 50% on <strong>llm_judge</strong>.</p>`;
             html += `<table><thead><tr><th>Question</th><th>Expected</th>`;
-            models.forEach(m => { html += `<th>${m}<br><small style="font-weight:normal">(actual / normalized)</small></th>`; });
+            models.forEach(m => { html += `<th>${m}<br><small style="font-weight:normal">(actual / judge score)</small></th>`; });
             html += `</tr></thead><tbody>`;
 
-            failures.slice(0, 50).forEach(group => {
+            lowScoring.slice(0, 50).forEach(group => {
                 const first = Object.values(group)[0];
                 html += `<tr><td class="mono" style="max-width:250px">${esc(first.input)}</td>`;
                 html += `<td class="mono">${esc(first.expected_output)}</td>`;
                 models.forEach(m => {
                     const r = group[m] || {};
-                    const score = (r.scores || {})[primaryEv];
-                    const cls = score === 1 ? 'correct' : score === 0 ? 'wrong' : '';
-                    html += `<td class="${cls} mono">${esc(r.actual_output || '-')}<br>${r.normalized_actual ? '<small>' + esc(r.normalized_actual) + '</small>' : ''}</td>`;
+                    const judgeScore = (r.scores || {})[JUDGE_EV];
+                    const scorePct = judgeScore != null ? (judgeScore * 100).toFixed(0) + '%' : '—';
+                    const cls = judgeScore == null ? '' : judgeScore >= 0.8 ? 'correct' : judgeScore >= 0.5 ? 'partial' : 'wrong';
+                    html += `<td class="mono">${esc(r.actual_output || '-')}<br><small class="${cls}" style="font-weight:600">judge: ${scorePct}</small></td>`;
                 });
                 html += '</tr>';
             });

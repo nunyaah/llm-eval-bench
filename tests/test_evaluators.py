@@ -1,4 +1,8 @@
+from unittest.mock import MagicMock, patch
+
 from src.evaluators.exact_match import ExactMatchEvaluator
+from src.evaluators.faithfulness import FaithfulnessEvaluator
+from src.evaluators.llm_judge import LLMJudgeEvaluator
 from src.evaluators.normalization import normalize_answer, normalize_numeric, normalize_text
 from src.evaluators.semantic_similarity import SemanticSimilarityEvaluator
 
@@ -160,3 +164,147 @@ class TestSemanticSimilarityEvaluator:
     def test_name(self):
         ev = SemanticSimilarityEvaluator()
         assert ev.name == "semantic_similarity"
+
+
+def _make_litellm_response(content: str):
+    """Create a mock litellm completion response."""
+    message = MagicMock()
+    message.content = content
+    choice = MagicMock()
+    choice.message = message
+    response = MagicMock()
+    response.choices = [choice]
+    return response
+
+
+class TestLLMJudgeEvaluator:
+    def test_name(self):
+        ev = LLMJudgeEvaluator()
+        assert ev.name == "llm_judge"
+
+    def test_empty_actual_returns_zero(self):
+        ev = LLMJudgeEvaluator()
+        assert ev.score("expected", "") == 0.0
+        assert ev.score("expected", "  ") == 0.0
+
+    @patch("src.evaluators.llm_judge.litellm.completion")
+    def test_perfect_score(self, mock_completion):
+        mock_completion.return_value = _make_litellm_response(
+            '{"score": 10, "reasoning": "Perfect answer"}'
+        )
+        ev = LLMJudgeEvaluator()
+        result = ev.score("Paris", "Paris", input_text="What is the capital of France?")
+        assert result == 1.0
+
+    @patch("src.evaluators.llm_judge.litellm.completion")
+    def test_partial_score(self, mock_completion):
+        mock_completion.return_value = _make_litellm_response(
+            '{"score": 7, "reasoning": "Mostly correct"}'
+        )
+        ev = LLMJudgeEvaluator()
+        result = ev.score("Paris", "paris, france", input_text="Capital of France?")
+        assert result == 0.7
+
+    @patch("src.evaluators.llm_judge.litellm.completion")
+    def test_zero_score(self, mock_completion):
+        mock_completion.return_value = _make_litellm_response(
+            '{"score": 0, "reasoning": "Completely wrong"}'
+        )
+        ev = LLMJudgeEvaluator()
+        result = ev.score("Paris", "Tokyo")
+        assert result == 0.0
+
+    @patch("src.evaluators.llm_judge.litellm.completion")
+    def test_api_error_returns_zero(self, mock_completion):
+        mock_completion.side_effect = Exception("API error")
+        ev = LLMJudgeEvaluator()
+        result = ev.score("Paris", "Paris")
+        assert result == 0.0
+
+    def test_parse_score_valid_json(self):
+        assert LLMJudgeEvaluator._parse_score('{"score": 8, "reasoning": "Good"}') == 0.8
+
+    def test_parse_score_fallback_regex(self):
+        assert LLMJudgeEvaluator._parse_score("score: 6") == 0.6
+
+    def test_parse_score_bare_number(self):
+        assert LLMJudgeEvaluator._parse_score("7") == 0.7
+
+    def test_parse_score_clamps_to_one(self):
+        assert LLMJudgeEvaluator._parse_score('{"score": 15, "reasoning": ""}') == 1.0
+
+    def test_parse_score_unparseable(self):
+        assert LLMJudgeEvaluator._parse_score("no score here at all") == 0.0
+
+    @patch("src.evaluators.llm_judge.litellm.completion")
+    def test_custom_judge_model(self, mock_completion):
+        mock_completion.return_value = _make_litellm_response('{"score": 9, "reasoning": ""}')
+        ev = LLMJudgeEvaluator(judge_model="claude-3-haiku-20240307")
+        ev.score("a", "b")
+        call_kwargs = mock_completion.call_args
+        assert call_kwargs[1]["model"] == "claude-3-haiku-20240307"
+
+
+class TestFaithfulnessEvaluator:
+    def test_name(self):
+        ev = FaithfulnessEvaluator()
+        assert ev.name == "faithfulness"
+
+    def test_empty_actual_returns_zero(self):
+        ev = FaithfulnessEvaluator()
+        assert ev.score("expected", "") == 0.0
+        assert ev.score("expected", "  ") == 0.0
+
+    @patch("src.evaluators.faithfulness.litellm.completion")
+    def test_fully_faithful(self, mock_completion):
+        mock_completion.return_value = _make_litellm_response(
+            '{"score": 10, "hallucinations": [], "reasoning": "Fully faithful"}'
+        )
+        ev = FaithfulnessEvaluator()
+        result = ev.score("Paris", "Paris", input_text="Capital of France?")
+        assert result == 1.0
+
+    @patch("src.evaluators.faithfulness.litellm.completion")
+    def test_partial_hallucination(self, mock_completion):
+        mock_completion.return_value = _make_litellm_response(
+            '{"score": 5, "hallucinations": ["Paris is in Germany"], "reasoning": "Mixed"}'
+        )
+        ev = FaithfulnessEvaluator()
+        result = ev.score("Paris", "Paris is in Germany")
+        assert result == 0.5
+
+    @patch("src.evaluators.faithfulness.litellm.completion")
+    def test_full_hallucination(self, mock_completion):
+        mock_completion.return_value = _make_litellm_response(
+            '{"score": 0, "hallucinations": ["Everything is wrong"], "reasoning": "Fabricated"}'
+        )
+        ev = FaithfulnessEvaluator()
+        result = ev.score("Paris", "The moon is made of cheese")
+        assert result == 0.0
+
+    @patch("src.evaluators.faithfulness.litellm.completion")
+    def test_api_error_returns_zero(self, mock_completion):
+        mock_completion.side_effect = Exception("API error")
+        ev = FaithfulnessEvaluator()
+        result = ev.score("Paris", "Paris")
+        assert result == 0.0
+
+    def test_parse_score_valid_json(self):
+        text = '{"score": 8, "hallucinations": [], "reasoning": "Good"}'
+        assert FaithfulnessEvaluator._parse_score(text) == 0.8
+
+    def test_parse_score_fallback_regex(self):
+        assert FaithfulnessEvaluator._parse_score("score: 4") == 0.4
+
+    def test_parse_score_unparseable(self):
+        assert FaithfulnessEvaluator._parse_score("no score here at all") == 0.0
+
+    @patch("src.evaluators.faithfulness.litellm.completion")
+    def test_custom_judge_model(self, mock_completion):
+        mock_completion.return_value = _make_litellm_response(
+            '{"score": 10, "hallucinations": [], "reasoning": ""}'
+        )
+        ev = FaithfulnessEvaluator(judge_model="claude-3-haiku-20240307")
+        ev.score("a", "b")
+        call_kwargs = mock_completion.call_args
+        assert call_kwargs[1]["model"] == "claude-3-haiku-20240307"

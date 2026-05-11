@@ -41,6 +41,8 @@ class Database:
                     model_name TEXT NOT NULL,
                     exact_match REAL,
                     semantic_similarity REAL,
+                    llm_judge REAL,
+                    faithfulness REAL,
                     ci_lower REAL,
                     ci_upper REAL,
                     avg_latency_ms REAL,
@@ -76,6 +78,8 @@ class Database:
             ("eval_runs", "primary_metric", "TEXT"),
             ("eval_runs", "sample_count", "INTEGER"),
             ("eval_results", "normalized_actual", "TEXT"),
+            ("model_summaries", "llm_judge", "REAL"),
+            ("model_summaries", "faithfulness", "REAL"),
         ]
         for table, column, col_type in migrations:
             try:
@@ -183,6 +187,8 @@ class Database:
         model_name: str,
         exact_match: float | None = None,
         semantic_similarity: float | None = None,
+        llm_judge: float | None = None,
+        faithfulness: float | None = None,
         ci_lower: float | None = None,
         ci_upper: float | None = None,
         avg_latency_ms: float | None = None,
@@ -193,13 +199,16 @@ class Database:
             conn.execute(
                 """INSERT OR REPLACE INTO model_summaries
                    (run_id, model_name, exact_match, semantic_similarity,
+                    llm_judge, faithfulness,
                     ci_lower, ci_upper, avg_latency_ms, total_cost)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     run_id,
                     model_name,
                     exact_match,
                     semantic_similarity,
+                    llm_judge,
+                    faithfulness,
                     ci_lower,
                     ci_upper,
                     avg_latency_ms,

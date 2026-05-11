@@ -4,22 +4,21 @@ Usage:
     python -m examples.compare_two_models
 
 Requires API keys set in .env (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)
+or Ollama running locally for ollama/ models.
 """
 
+from src.config import DATASET, EVALUATORS, MODELS, PRIMARY_METRIC, SYSTEM_PROMPT
 from src.runner import evaluate
 
-SYSTEM_PROMPT = (
-    "You are a precise question-answering assistant. "
-    "Respond with only the answer – no explanation, no extra context, no punctuation beyond what is part of the answer itself."
-)
 
 def main():
     result = evaluate(
-        models=["claude-3-haiku-20240307", "claude-sonnet-4-5-20250929"],
-        dataset="data/sample_qa.json",
-        evaluators=["exact_match", "semantic_similarity"],
+        models=MODELS,
+        dataset=DATASET,
+        evaluators=EVALUATORS,
         run_name="example_comparison",
         system_prompt=SYSTEM_PROMPT,
+        primary_metric=PRIMARY_METRIC,
     )
 
     print(f"\n{'='*60}")

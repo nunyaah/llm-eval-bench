@@ -34,8 +34,8 @@ This project answers:
 | Evaluator | Description |
 |---|---|
 | `ExactMatchEvaluator` | Normalized exact match  strips whitespace, lowercases, removes punctuation, normalizes numeric forms (`4.0`  `4`). Optional article removal (`the`/`a`/`an`) for QA mode. |
-| `SemanticSimilarityEvaluator` | TF-IDF cosine similarity. |
-
+| `SemanticSimilarityEvaluator` | TF-IDF cosine similarity. || `LLMJudgeEvaluator` | Uses a configurable judge LLM (default `gpt-4o-mini`) to score answer quality on a 0–10 scale, normalised to [0, 1]. Receives the question, expected answer, and actual answer. |
+| `FaithfulnessEvaluator` | Hallucination / faithfulness detection — a judge LLM checks whether the actual answer is faithful to the ground truth or contains fabricated claims. Returns a score [0, 1] and lists specific hallucinations. |
 The normalization pipeline lives in `src/evaluators/normalization.py` and exposes:
 - `normalize_text(text)`  strip, lowercase, collapse whitespace/newlines, remove punctuation
 - `normalize_numeric(text)`  `"4.0"`  `"4"`, `"1,000"`  `"1000"`
@@ -58,7 +58,7 @@ SQLite-backed storage with three tables:
 | Table | Key columns |
 |---|---|
 | `eval_runs` | `id`, `name`, `dataset_path`, `models`, `evaluators`, `primary_metric`, `sample_count`, `status`, `created_at` |
-| `model_summaries` | `run_id`, `model_name`, `exact_match`, `semantic_similarity`, `ci_lower`, `ci_upper`, `avg_latency_ms`, `total_cost` |
+| `model_summaries` | `run_id`, `model_name`, `exact_match`, `semantic_similarity`, `llm_judge`, `faithfulness`, `ci_lower`, `ci_upper`, `avg_latency_ms`, `total_cost` |
 | `eval_results` | `run_id`, `model`, `input`, `expected_output`, `actual_output`, `normalized_actual`, `scores`, `latency_ms`, `cost` |
 
 The schema auto-migrates existing databases when new columns are added.
@@ -90,13 +90,15 @@ A single-page HTML interface served by the API that shows:
 ```
 llm-eval-bench/
  src/
-    config.py                  # Env-based config (DATABASE_PATH, API_HOST, API_PORT)
+    config.py                  # Env-based config (models, evaluators, judge, dataset, system prompt)
     runner.py                  # Core evaluate() function
     evaluators/
        base.py                # BaseEvaluator ABC
        normalization.py       # normalize_text / normalize_numeric / normalize_answer
        exact_match.py         # Normalized ExactMatchEvaluator
        semantic_similarity.py # TF-IDF cosine similarity
+       llm_judge.py           # LLM-as-judge scoring
+       faithfulness.py        # Hallucination / faithfulness detection
     statistics/
        bootstrap.py           # bootstrap_confidence_interval
        comparison.py          # paired_bootstrap_test
@@ -118,10 +120,12 @@ llm-eval-bench/
     test_datasets.py           # Dataset loader
     test_api.py                # API endpoint tests
  examples/
-    compare_two_models.py      # Compare two cloud models via runner
-    regerssion_test_suite.py   # Detect performance regressions
+    compare_two_models.py      # Compare two models via runner (uses config)
+    regerssion_test_suite.py   # Detect performance regressions (uses config)
  data/
-    sample_qa.json             # 10-question QA dataset
+    sample_qa.json             # 10-question simple QA dataset
+    complex_qa.json            # 25-question multi-domain reasoning dataset
+    faithfulness_qa.json       # 30-question dataset for faithfulness / hallucination testing
  run_comparison.py              # End-to-end Ollama demo (llama3.2:1b vs 3b)
  Dockerfile
  docker-compose.yml
@@ -158,9 +162,25 @@ Supported variables:
 DATABASE_PATH=eval_results.db   # default: project root
 API_HOST=0.0.0.0
 API_PORT=8000
+
+# Models under comparison (LiteLLM identifiers)
+MODEL_A=ollama/llama3.2:1b
+MODEL_B=ollama/llama3.2:3b
+
+# Judge model used by LLM-judge and faithfulness evaluators
+JUDGE_MODEL=ollama/llama3.2:3b
+
+# Default dataset
+DATASET=data/complex_qa.json
+
+# Cloud provider keys (only needed for cloud models)
 OPENAI_API_KEY=...
 ANTHROPIC_API_KEY=...
 ```
+
+All model and evaluator settings live in `src/config.py` and can be overridden
+via environment variables or `.env`.  Changing them once applies everywhere:
+`run_comparison.py`, `examples/`, evaluator defaults, and the runner.
 
 ### 3. Run the API
 
@@ -186,11 +206,12 @@ docker compose up --build
 
 ```python
 from src.runner import evaluate
+from src.config import MODELS, EVALUATORS, DATASET
 
 result = evaluate(
-    models=["gpt-4o-mini", "claude-3-haiku-20240307"],
-    dataset="data/sample_qa.json",
-    evaluators=["exact_match", "semantic_similarity"],
+    models=MODELS,
+    dataset=DATASET,
+    evaluators=EVALUATORS,
     run_name="my_comparison",
 )
 
@@ -206,7 +227,7 @@ curl -X POST http://localhost:8000/api/run-eval \
   -H "Content-Type: application/json" \
   -d '{"models": ["gpt-4o-mini", "claude-3-haiku-20240307"],
        "dataset": "data/sample_qa.json",
-       "evaluators": ["exact_match", "semantic_similarity"]}'
+       "evaluators": ["exact_match", "semantic_similarity", "llm_judge", "faithfulness"]}'
 
 # Inspect results
 curl http://localhost:8000/api/results/1
@@ -276,7 +297,7 @@ JSON array where each item has `input` and `expected_output`:
 pytest tests/ -v
 ```
 
-60 tests covering evaluators (including all normalization cases), statistics, tracking, and datasets.
+89 tests covering evaluators (including all normalization cases, LLM judge, and faithfulness), statistics, tracking, API, and datasets.
 
 ---
 
@@ -308,8 +329,6 @@ pytest tests/ -v
 
 The following are intentionally deferred:
 
-* LLM-as-judge scoring
-* Hallucination / faithfulness detection
 * Calibration analysis
 * Sample size estimation
 * Stratified datasets (by category / difficulty)

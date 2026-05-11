@@ -1,7 +1,5 @@
-"""Evaluate and compare two Ollama-hosted open source LLMs on the sample QA dataset.
-
-Uses LiteLLM's Ollama integration — no API keys required.
-Requires Ollama to be running: https://ollama.com
+"""
+Evaluate and compare two LLMs on the sample QA dataset.
 """
 
 import time
@@ -10,28 +8,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from src.config import DATASET, JUDGE_MODEL, MODELS, PRIMARY_METRIC, SYSTEM_PROMPT
 from src.datasets.loader import load_dataset
 from src.evaluators.exact_match import ExactMatchEvaluator
+from src.evaluators.faithfulness import FaithfulnessEvaluator
+from src.evaluators.llm_judge import LLMJudgeEvaluator
 from src.evaluators.semantic_similarity import SemanticSimilarityEvaluator
 from src.statistics.bootstrap import bootstrap_confidence_interval
 from src.statistics.comparison import paired_bootstrap_test
 from src.tracking.database import Database
 from src.tracking.tracker import CostLatencyTracker
 
-# Ollama models — prefixed with "ollama/" for LiteLLM routing
-MODELS = [
-    "claude-3-haiku-20240307",
-    "claude-sonnet-4-5-20250929",
+EVALUATOR_INSTANCES = [
+    ExactMatchEvaluator(),
+    SemanticSimilarityEvaluator(),
+    LLMJudgeEvaluator(judge_model=JUDGE_MODEL),
+    FaithfulnessEvaluator(judge_model=JUDGE_MODEL),
 ]
-DATASET = "data/complex_qa.json"
-EVALUATORS = [ExactMatchEvaluator(), SemanticSimilarityEvaluator()]
-
-# Instruct models to respond with just the answer — improves exact match scoring
-SYSTEM_PROMPT = (
-    "You are a concise factual assistant. "
-    "Answer each question with ONLY the answer itself — no explanation, no punctuation, no extra words. "
-    "For example: if asked 'What is the capital of France?' reply only 'Paris'."
-)
 
 
 def call_model(model: str, prompt: str) -> dict:
@@ -64,14 +57,14 @@ def main():
     run_id = db.create_run(
         dataset_path=DATASET,
         models=MODELS,
-        evaluators=[ev.name for ev in EVALUATORS],
-        name="claude_3_haiku_vs_sonnet_4_5",
-        primary_metric=EVALUATORS[0].name,
+        evaluators=[ev.name for ev in EVALUATOR_INSTANCES],
+        name="llama3.2_1b_vs_3b",
+        primary_metric=PRIMARY_METRIC,
         sample_count=len(data),
     )
 
     model_scores: dict[str, dict[str, list[float]]] = {
-        m: {ev.name: [] for ev in EVALUATORS} for m in MODELS
+        m: {ev.name: [] for ev in EVALUATOR_INSTANCES} for m in MODELS
     }
 
     print(f"\nRun #{run_id}: Evaluating {len(data)} samples across {len(MODELS)} models...\n")
@@ -94,12 +87,12 @@ def main():
                 latency_ms, tokens_used, cost = 0.0, 0, 0.0
 
             scores = {}
-            for ev in EVALUATORS:
-                s = ev.score(expected, actual or "") if actual is not None else 0.0
+            for ev in EVALUATOR_INSTANCES:
+                s = ev.score(expected, actual or "", input_text=input_text) if actual is not None else 0.0
                 scores[ev.name] = s
                 model_scores[model][ev.name].append(s)
 
-            normalized = EVALUATORS[0].normalized_output(actual) if actual is not None else None
+            normalized = EVALUATOR_INSTANCES[0].normalized_output(actual) if actual is not None else None
             tracker.record(model, latency_ms, tokens_used, cost)
             db.insert_result(
                 run_id=run_id,
@@ -119,7 +112,9 @@ def main():
                 f"actual={actual!r:<30} "
                 f"normalized={normalized!r:<25} "
                 f"em={scores.get('exact_match', 0):.1f}  "
-                f"sim={scores.get('semantic_similarity', 0):.2f}"
+                f"sim={scores.get('semantic_similarity', 0):.2f}  "
+                f"judge={scores.get('llm_judge', 0):.2f}  "
+                f"faith={scores.get('faithfulness', 0):.2f}"
             )
 
     db.complete_run(run_id)
@@ -129,7 +124,7 @@ def main():
     print("RESULTS SUMMARY")
     print(f"{'='*65}")
     n_samples = len(data)
-    primary_metric = EVALUATORS[0].name
+    primary_metric = PRIMARY_METRIC
     print(f"Primary metric:   {primary_metric}")
     print(f"Samples:          {n_samples}")
     print(f"CI method:        bootstrap (2000 resamples)")
@@ -142,10 +137,14 @@ def main():
         stats = model_scores[model]
         em = bootstrap_confidence_interval(stats["exact_match"], seed=42)
         sim = bootstrap_confidence_interval(stats["semantic_similarity"], seed=42)
+        judge = bootstrap_confidence_interval(stats["llm_judge"], seed=42)
+        faith = bootstrap_confidence_interval(stats["faithfulness"], seed=42)
         tr = tracker.summary(model)
         print(f"  {model}")
         print(f"    Exact Match:          {em['mean']*100:5.1f}%  (95% CI: {em['lower']*100:.1f}–{em['upper']*100:.1f}%)")
         print(f"    Semantic Similarity:  {sim['mean']*100:5.1f}%  (95% CI: {sim['lower']*100:.1f}–{sim['upper']*100:.1f}%)")
+        print(f"    LLM Judge:            {judge['mean']*100:5.1f}%  (95% CI: {judge['lower']*100:.1f}–{judge['upper']*100:.1f}%)")
+        print(f"    Faithfulness:         {faith['mean']*100:5.1f}%  (95% CI: {faith['lower']*100:.1f}–{faith['upper']*100:.1f}%)")
         print(f"    Avg latency:          {tr['avg_latency_ms']:.0f} ms")
         print(f"    Total cost:           ${tr['total_cost']:.5f}")
         print()

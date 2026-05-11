@@ -5,6 +5,8 @@ import litellm
 from src.datasets.loader import load_dataset
 from src.evaluators.base import BaseEvaluator
 from src.evaluators.exact_match import ExactMatchEvaluator
+from src.evaluators.faithfulness import FaithfulnessEvaluator
+from src.evaluators.llm_judge import LLMJudgeEvaluator
 from src.evaluators.semantic_similarity import SemanticSimilarityEvaluator
 from src.statistics.bootstrap import bootstrap_confidence_interval
 from src.statistics.comparison import paired_bootstrap_test
@@ -14,6 +16,8 @@ from src.tracking.tracker import CostLatencyTracker
 EVALUATOR_REGISTRY: dict[str, type[BaseEvaluator]] = {
     "exact_match": ExactMatchEvaluator,
     "semantic_similarity": SemanticSimilarityEvaluator,
+    "llm_judge": LLMJudgeEvaluator,
+    "faithfulness": FaithfulnessEvaluator,
 }
 
 
@@ -65,6 +69,7 @@ def evaluate(
     run_name: str | None = None,
     db_path: str | None = None,
     system_prompt: str | None = None,
+    primary_metric: str | None = None,
 ) -> dict:
     """Run an evaluation comparing models on a dataset.
 
@@ -75,6 +80,7 @@ def evaluate(
         run_name: Optional name for this evaluation run
         db_path: Optional database path override
         system_prompt: Optional system prompt prepended to every model call
+        primary_metric: Metric used for statistical comparison. Defaults to first evaluator.
 
     Returns:
         dict with run_id, per-model results, statistics, and tracking summaries
@@ -86,10 +92,15 @@ def evaluate(
             raise ValueError(f"Unknown evaluator: {name}. Available: {list(EVALUATOR_REGISTRY.keys())}")
         evaluator_instances.append(EVALUATOR_REGISTRY[name]())
 
+    if primary_metric is not None and primary_metric not in evaluator_names:
+        raise ValueError(
+            f"primary_metric '{primary_metric}' not in evaluators {evaluator_names}"
+        )
+
     data = load_dataset(dataset)
     db = Database(db_path)
     tracker = CostLatencyTracker()
-    primary_metric = evaluator_names[0]
+    primary_metric = primary_metric or evaluator_names[0]
 
     run_id = db.create_run(
         dataset_path=dataset,
@@ -128,7 +139,7 @@ def evaluate(
                 normalized_actual = _get_normalized_output(evaluator_instances, actual) if actual is not None else None
                 if actual is not None:
                     for ev in evaluator_instances:
-                        score_val = ev.score(expected, actual)
+                        score_val = ev.score(expected, actual, input_text=input_text)
                         scores[ev.name] = score_val
                         model_scores[model][ev.name].append(score_val)
                 else:
@@ -170,11 +181,15 @@ def evaluate(
         # Persist model summary to DB
         em_stats = stats.get("exact_match", {})
         sim_stats = stats.get("semantic_similarity", {})
+        judge_stats = stats.get("llm_judge", {})
+        faith_stats = stats.get("faithfulness", {})
         db.upsert_model_summary(
             run_id=run_id,
             model_name=model,
             exact_match=em_stats.get("mean"),
             semantic_similarity=sim_stats.get("mean"),
+            llm_judge=judge_stats.get("mean"),
+            faithfulness=faith_stats.get("mean"),
             ci_lower=em_stats.get("lower"),
             ci_upper=em_stats.get("upper"),
             avg_latency_ms=tracking.get("avg_latency_ms"),

@@ -12,7 +12,7 @@ class SemanticSimilarityEvaluator(BaseEvaluator):
 
     name = "semantic_similarity"
 
-    def score(self, expected: str, actual: str) -> float:
+    def score(self, expected: str, actual: str, input_text: str | None = None) -> float:
         if not expected.strip() or not actual.strip():
             return 0.0
 
