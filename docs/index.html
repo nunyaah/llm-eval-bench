@@ -387,9 +387,20 @@
   }
 
   async function startComparison() {
-    if (GROQ_API_KEY === '__GROQ_API_KEY__') {
-      alert('API key placeholder was not substituted.\nDeploy via GitHub Actions, or replace __GROQ_API_KEY__ manually for local testing.');
-      return;
+    try {
+      await runComparison();
+    } catch (err) {
+      console.error(err);
+      alert('Error: ' + (err && err.message ? err.message : err));
+      const btn = document.getElementById('runBtn');
+      btn.disabled = false;
+      btn.textContent = 'Run Comparison';
+    }
+  }
+
+  async function runComparison() {
+    if (typeof GROQ_API_KEY !== 'string' || GROQ_API_KEY.length < 10) {
+      throw new Error('API key was not injected at build time. Check the Inject step in the deploy workflow.');
     }
 
     const selA = document.getElementById('modelA').value;
