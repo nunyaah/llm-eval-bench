@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Comparison — Groq</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; }
+    .answer-box { white-space: pre-wrap; word-break: break-word; }
+    .fade-in { animation: fadeIn 0.25s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .progress-bar { transition: width 0.4s ease; }
+    select option { background: #111827; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <div class="max-w-5xl mx-auto px-4 py-10">
+
+    <!-- Header -->
+    <div class="mb-8">
+      <div class="flex items-center gap-3 mb-2">
+        <h1 class="text-xl font-semibold text-white tracking-tight">LLM Comparison</h1>
+        <span class="px-2 py-0.5 text-xs bg-orange-500/15 text-orange-400 border border-orange-500/25 rounded-full">Groq Free Tier</span>
+      </div>
+      <p class="text-gray-500 text-sm">Select two models and run them against 5 questions. Vote on each answer to see which model you prefer.</p>
+    </div>
+
+    <!-- Model selection -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-5">
+      <h2 class="text-xs font-medium text-gray-500 uppercase tracking-widest mb-4">Models</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">
+            <span class="inline-block w-2.5 h-2.5 rounded-sm bg-green-500/70 mr-1.5 align-middle"></span>Model A
+          </label>
+          <select id="modelA" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gray-500">
+            <option value="llama-3.1-8b-instant" selected>llama-3.1-8b-instant</option>
+            <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
+            <option value="meta-llama/llama-4-scout-17b-16e-instruct">llama-4-scout-17b-16e-instruct</option>
+            <option value="gemma2-9b-it">gemma2-9b-it</option>
+            <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">
+            <span class="inline-block w-2.5 h-2.5 rounded-sm bg-blue-500/70 mr-1.5 align-middle"></span>Model B
+          </label>
+          <select id="modelB" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gray-500">
+            <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+            <option value="llama-3.3-70b-versatile" selected>llama-3.3-70b-versatile</option>
+            <option value="meta-llama/llama-4-scout-17b-16e-instruct">llama-4-scout-17b-16e-instruct</option>
+            <option value="gemma2-9b-it">gemma2-9b-it</option>
+            <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Questions preview -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-5">
+      <h2 class="text-xs font-medium text-gray-500 uppercase tracking-widest mb-3">Questions</h2>
+      <ol class="space-y-2" id="questionsList"></ol>
+      <p class="text-xs text-gray-600 mt-3">Rate limit: free tier is 30 req/min — a 2 s pause between questions keeps calls well within quota.</p>
+    </div>
+
+    <!-- Run button -->
+    <button
+      id="runBtn"
+      onclick="runComparison()"
+      class="w-full py-3 bg-white hover:bg-gray-100 active:bg-gray-200 text-gray-950 font-semibold rounded-xl text-sm transition-colors mb-5 disabled:opacity-40 disabled:cursor-not-allowed"
+    >Run Comparison</button>
+
+    <!-- Progress -->
+    <div id="progressSection" class="hidden bg-gray-900 border border-gray-800 rounded-xl p-5 mb-5">
+      <div class="flex justify-between items-center text-xs mb-2">
+        <span id="progressLabel" class="text-gray-400">Starting...</span>
+        <span id="progressCount" class="text-gray-600">0 / 10</span>
+      </div>
+      <div class="bg-gray-800 rounded-full h-1">
+        <div id="progressBar" class="bg-white h-1 rounded-full progress-bar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="resultsSection" class="hidden space-y-4">
+
+      <!-- Vote summary -->
+      <div id="summaryBanner" class="hidden bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="text-sm" id="summaryText"></div>
+        <div class="flex gap-4 text-xs text-gray-500" id="summaryStats"></div>
+      </div>
+
+      <div id="questionResults" class="space-y-4"></div>
+    </div>
+
+  </div>
+
+  <script>
+    // Injected at deploy time by the GitHub Actions workflow (never committed to source)
+    const GROQ_API_KEY = '__GROQ_API_KEY__';
+
+    const QUESTIONS = [
+      "What is the time complexity of quicksort in the worst case, and why does it occur?",
+      "A train travels 120 km in 1.5 hours. What is its average speed in km/h? Show your working.",
+      "Write a Python function that returns all prime numbers up to n using the Sieve of Eratosthenes.",
+      "Explain the key difference between a stack and a queue, with a real-world analogy for each.",
+      "If all Bloops are Razzles and all Razzles are Lazzles, are all Bloops necessarily Lazzles? Explain your reasoning."
+    ];
+
+    let votes = {};
+    let results = [];
+    let completedCalls = 0;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const qList = document.getElementById('questionsList');
+      qList.innerHTML = QUESTIONS.map((q, i) =>
+        `<li class="flex gap-2 text-sm"><span class="text-gray-600 shrink-0 select-none">${i + 1}.</span><span class="text-gray-300">${escHtml(q)}</span></li>`
+      ).join('');
+    });
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    function escHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    async function callGroq(model, question) {
+      const t0 = performance.now();
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: question }],
+          max_tokens: 512,
+          temperature: 0.1
+        })
+      });
+      const latency = Math.round(performance.now() - t0);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      return {
+        answer: data.choices[0]?.message?.content?.trim() || '(empty)',
+        latency,
+        tokens: data.usage?.completion_tokens || 0
+      };
+    }
+
+    function latencyColor(ms) {
+      if (ms < 1500) return '#4ade80';
+      if (ms < 3000) return '#facc15';
+      return '#f87171';
+    }
+
+    function renderResult(i, question, rA, rB, nameA, nameB) {
+      const html = `
+        <div id="qr-${i}" class="bg-gray-900 border border-gray-800 rounded-xl p-5 fade-in">
+          <div class="flex gap-2 mb-4">
+            <span class="text-xs text-gray-600 shrink-0 pt-0.5">Q${i + 1}</span>
+            <p class="text-sm text-gray-200 leading-relaxed">${escHtml(question)}</p>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-medium" style="color:#4ade80">A — ${escHtml(nameA)}</span>
+                ${rA.error
+                  ? '<span style="color:#f87171" class="text-xs">error</span>'
+                  : `<span class="text-xs" style="color:${latencyColor(rA.latency)}">${rA.latency}ms</span><span class="text-xs text-gray-600 ml-2">${rA.tokens} tok</span>`}
+              </div>
+              <div class="answer-box bg-gray-800/50 border border-gray-700/40 rounded-lg p-3 text-xs text-gray-300 max-h-56 overflow-y-auto leading-relaxed">${rA.error ? `<span style="color:#f87171">${escHtml(rA.error)}</span>` : escHtml(rA.answer)}</div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-medium" style="color:#60a5fa">B — ${escHtml(nameB)}</span>
+                ${rB.error
+                  ? '<span style="color:#f87171" class="text-xs">error</span>'
+                  : `<span class="text-xs" style="color:${latencyColor(rB.latency)}">${rB.latency}ms</span><span class="text-xs text-gray-600 ml-2">${rB.tokens} tok</span>`}
+              </div>
+              <div class="answer-box bg-gray-800/50 border border-gray-700/40 rounded-lg p-3 text-xs text-gray-300 max-h-56 overflow-y-auto leading-relaxed">${rB.error ? `<span style="color:#f87171">${escHtml(rB.error)}</span>` : escHtml(rB.answer)}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 mt-4 pt-3 border-t border-gray-800">
+            <span class="text-xs text-gray-600 mr-1">Better answer:</span>
+            <button id="vA-${i}" onclick="vote(${i},'A')" class="px-3 py-1 border border-gray-700 rounded-md text-xs text-gray-400 hover:border-green-600 hover:text-green-400 transition-colors">A wins</button>
+            <button id="vB-${i}" onclick="vote(${i},'B')" class="px-3 py-1 border border-gray-700 rounded-md text-xs text-gray-400 hover:border-blue-600 hover:text-blue-400 transition-colors">B wins</button>
+            <button id="vT-${i}" onclick="vote(${i},'tie')" class="px-3 py-1 border border-gray-700 rounded-md text-xs text-gray-400 hover:border-gray-500 hover:text-gray-300 transition-colors">Tie</button>
+          </div>
+        </div>`;
+
+      const existing = document.getElementById(`qr-${i}`);
+      if (existing) existing.outerHTML = html;
+      else document.getElementById('questionResults').insertAdjacentHTML('beforeend', html);
+    }
+
+    function vote(i, winner) {
+      votes[i] = winner;
+
+      const styles = {
+        A:   { id: `vA-${i}`, active: 'border-green-500 text-green-400 bg-green-500/10' },
+        B:   { id: `vB-${i}`, active: 'border-blue-500 text-blue-400 bg-blue-500/10' },
+        tie: { id: `vT-${i}`, active: 'border-gray-500 text-gray-300 bg-gray-700/50' }
+      };
+
+      ['A', 'B', 'tie'].forEach(k => {
+        const btn = document.getElementById(styles[k].id);
+        if (btn) btn.className = 'px-3 py-1 border border-gray-700 rounded-md text-xs text-gray-400 hover:border-gray-500 hover:text-gray-300 transition-colors';
+      });
+
+      const btn = document.getElementById(styles[winner].id);
+      if (btn) btn.className = `px-3 py-1 border rounded-md text-xs transition-colors ${styles[winner].active}`;
+
+      updateSummary();
+    }
+
+    function updateSummary() {
+      const voted = Object.keys(votes).length;
+      if (voted === 0) return;
+
+      const aW   = Object.values(votes).filter(v => v === 'A').length;
+      const bW   = Object.values(votes).filter(v => v === 'B').length;
+      const ties = Object.values(votes).filter(v => v === 'tie').length;
+
+      let verdict;
+      if (aW > bW)      verdict = `<span style="color:#4ade80">Model A leads</span> ${aW}–${bW}`;
+      else if (bW > aW) verdict = `<span style="color:#60a5fa">Model B leads</span> ${bW}–${aW}`;
+      else              verdict = `<span class="text-gray-300">Tied</span> ${aW}–${bW}`;
+      if (ties) verdict += ` (${ties} tie${ties > 1 ? 's' : ''})`;
+
+      document.getElementById('summaryText').innerHTML = `Votes ${voted}/5 — ${verdict}`;
+
+      if (results.length === QUESTIONS.length) {
+        const avgA = Math.round(results.reduce((s, r) => s + (r.A?.latency || 0), 0) / results.length);
+        const avgB = Math.round(results.reduce((s, r) => s + (r.B?.latency || 0), 0) / results.length);
+        document.getElementById('summaryStats').innerHTML =
+          `<span>Avg latency A: <span style="color:${latencyColor(avgA)}">${avgA}ms</span></span>` +
+          `<span>Avg latency B: <span style="color:${latencyColor(avgB)}">${avgB}ms</span></span>`;
+      }
+
+      document.getElementById('summaryBanner').classList.remove('hidden');
+    }
+
+    async function runComparison() {
+      if (GROQ_API_KEY === '__GROQ_API_KEY__') {
+        alert('API key not injected. Deploy via GitHub Actions or replace __GROQ_API_KEY__ locally for testing.');
+        return;
+      }
+
+      const modelA = document.getElementById('modelA').value;
+      const modelB = document.getElementById('modelB').value;
+      if (modelA === modelB) { alert('Select two different models.'); return; }
+
+      votes = {};
+      results = [];
+      completedCalls = 0;
+      const total = QUESTIONS.length * 2;
+
+      const runBtn = document.getElementById('runBtn');
+      runBtn.disabled = true;
+      runBtn.textContent = 'Running…';
+
+      document.getElementById('progressSection').classList.remove('hidden');
+      document.getElementById('resultsSection').classList.remove('hidden');
+      document.getElementById('summaryBanner').classList.add('hidden');
+      document.getElementById('questionResults').innerHTML = '';
+      document.getElementById('progressBar').style.width = '0%';
+      document.getElementById('progressCount').textContent = `0 / ${total}`;
+
+      const nameA = modelA.split('/').pop();
+      const nameB = modelB.split('/').pop();
+
+      for (let i = 0; i < QUESTIONS.length; i++) {
+        document.getElementById('progressLabel').textContent = `Q${i + 1} — calling both models…`;
+
+        const [rA, rB] = await Promise.all([
+          callGroq(modelA, QUESTIONS[i]).catch(e => ({ error: e.message, latency: 0, tokens: 0 })),
+          callGroq(modelB, QUESTIONS[i]).catch(e => ({ error: e.message, latency: 0, tokens: 0 }))
+        ]);
+
+        completedCalls += 2;
+        document.getElementById('progressBar').style.width = `${Math.round((completedCalls / total) * 100)}%`;
+        document.getElementById('progressCount').textContent = `${completedCalls} / ${total}`;
+        document.getElementById('progressLabel').textContent = `Q${i + 1} done`;
+
+        results.push({ A: rA, B: rB });
+        renderResult(i, QUESTIONS[i], rA, rB, nameA, nameB);
+
+        // 2 s gap between questions — stays well within 30 RPM free-tier limit
+        if (i < QUESTIONS.length - 1) await sleep(2000);
+      }
+
+      runBtn.disabled = false;
+      runBtn.textContent = 'Run Again';
+      document.getElementById('progressLabel').textContent = '✓ Done — vote on the answers below';
+      updateSummary();
+    }
+  </script>
+</body>
+</html>

@@ -4,7 +4,84 @@
 
 Most LLM evaluations report a single average on a small test set and declare a winner. That conclusion may be pure noise.
 
-`llm-eval-bench` is a production-oriented evaluation harness that applies **proper statistical methods**bootstrap confidence intervals, paired hypothesis testing, and normalized scoringto measure model performance reliably and answer the question: *is one model actually better, or is the difference chance?*
+`llm-eval-bench` is a production-oriented evaluation harness that applies **proper statistical methods** — bootstrap confidence intervals, paired hypothesis testing, and normalized scoring — to measure model performance reliably and answer the question: *is one model actually better, or is the difference chance?*
+
+---
+
+## Live comparison tool
+
+**[Try it → GitHub Pages](https://nunyaah.github.io/llm-eval-bench/)**
+
+A zero-install browser UI for comparing any two Groq-hosted models head-to-head. No backend required — your API key stays in the browser and calls go directly to Groq.
+
+**Features:**
+- Select any two models from the Groq free tier
+- Runs 5 varied questions (reasoning, math, coding, logic, factual)
+- Side-by-side answers with per-response latency and token count
+- Vote on each answer; running vote tally shown at the top
+- Respects the 30 req/min free tier limit automatically
+
+**Available models:**
+
+| Model ID | Notes |
+|---|---|
+| `llama-3.1-8b-instant` | Fastest, lowest latency |
+| `llama-3.3-70b-versatile` | Best general quality on free tier |
+| `llama-4-scout-17b-16e-instruct` | Llama 4 (Meta, 2025) |
+| `gemma2-9b-it` | Google Gemma 2 — highest TPM on free plan |
+| `mixtral-8x7b-32768` | Mistral MoE, long context |
+
+**Free tier rate limits (per model):**
+
+| Limit | Value |
+|---|---|
+| Requests / minute | 30 |
+| Tokens / minute | 6 000 |
+| Requests / day | 1 000 |
+
+**Deployment — GitHub Actions injects the key at build time:**
+
+The source file contains the literal placeholder `__GROQ_API_KEY__`. The deploy workflow substitutes it with a GitHub Secret before publishing, so the key never appears in the repository.
+
+1. Add your key: **Settings → Secrets and variables → Actions → New repository secret**
+   - Name: `GROQ_API_KEY`
+   - Value: `gsk_...`
+2. Enable Pages: **Settings → Pages → Source: GitHub Actions**
+3. Push to `main` — the workflow builds and deploys automatically
+4. Visit `https://nunyaah.github.io/llm-eval-bench/`
+
+**To run locally** (replace the placeholder first):
+
+```bash
+# Linux / macOS
+sed 's/__GROQ_API_KEY__/gsk_your_key_here/' docs/index.html > /tmp/llm-compare.html
+open /tmp/llm-compare.html
+
+# Windows PowerShell
+(Get-Content docs\index.html) -replace '__GROQ_API_KEY__','gsk_your_key_here' | Set-Content $env:TEMP\llm-compare.html
+Start-Process $env:TEMP\llm-compare.html
+```
+
+---
+
+## Benchmark results
+
+**Dataset:** 25-question multi-domain reasoning (math, CS, logic, science) — `data/complex_qa.json`
+**Method:** Bootstrap CI (2 000 resamples) + paired bootstrap hypothesis test
+**Models:** local via [Ollama](https://ollama.com) — no API key required
+
+| Metric | llama3.2:1b | llama3.2:3b | Difference | p-value | Significant? |
+|---|---|---|---|---|---|
+| **Exact Match** | 12.0% (0.0–24.0%) | 40.0% (24.0–60.0%) | +28.0 pp | **0.021** | Yes |
+| Semantic Similarity | 17.6% (5.4–31.9%) | 48.1% (28.1–66.4%) | +30.5 pp | — | — |
+| LLM Judge (0–10 scale) | 52.4% (38.8–66.0%) | 72.0% (56.0–86.0%) | +19.6 pp | 0.077 | **No** |
+| Faithfulness | 41.6% (24.0–59.2%) | 68.0% (51.9–84.0%) | +26.4 pp | — | — |
+| Avg latency | 2 517 ms | 156 ms | — | — | — |
+| Cost / run | $0.00 | $0.00 | — | — | — |
+
+**Winner (exact match):** llama3.2:3b is statistically better (p = 0.021).
+
+**The catch:** by LLM judge scoring, the same 3b advantage is *not* statistically significant (p = 0.077). The metric you choose changes whether you can declare a winner. This is why confidence intervals and hypothesis tests matter.
 
 ---
 
